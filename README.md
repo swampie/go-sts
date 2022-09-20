@@ -10,6 +10,7 @@ I replaced Playwright with the fantastic [chromedp](https://github.com/chromedp/
 Roadmap
 - [x] First working implementation to have my credentials back
 - [ ] Write usage docs
+- [ ] GH Releases
 - [ ] Implement tests
 - [ ] Write more go compliant code (especially for error handling)
 - [ ] Implement a docker headless version
