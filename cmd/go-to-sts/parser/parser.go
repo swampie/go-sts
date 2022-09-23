@@ -35,7 +35,6 @@ func (p Parser) ParseSamlResponse(response string, roleToAssume string) []Role {
 		return nil
 	}
 
-	log.Printf("%s", samlResponse)
 	var sessionDuration int
 	sessionDuration, err = strconv.Atoi(samlResponse.GetAttribute("https://aws.amazon.com/SAML/Attributes/SessionDuration"))
 	if err != nil {

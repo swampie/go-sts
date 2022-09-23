@@ -101,7 +101,15 @@ func BuildConfig() StsConfig {
 }
 
 func Start(c StsConfig) {
-	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Flag("headless", false))
+	var opts [](chromedp.ExecAllocatorOption) = append(chromedp.DefaultExecAllocatorOptions[:], chromedp.Flag("headless", false))
+	opts = append(opts)
+
+	homeDir, dirErr := os.UserHomeDir()
+	if dirErr != nil {
+		log.Printf("Unable to get user directory. Browser session will not be persisted")
+	} else {
+		opts = append(opts, chromedp.UserDataDir(fmt.Sprintf("%s/.config/go-sts", homeDir)))
+	}
 	actx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	var contextOpts = []chromedp.ContextOption{}
 	contextOpts = []chromedp.ContextOption{
@@ -139,6 +147,19 @@ func Start(c StsConfig) {
 
 		chromedp.Navigate(c.BuildUrl()),
 		// wait for footer element is visible (ie, page is loaded)
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			var str string
+			chromedp.Location(&str).Do(ctx)
+
+			if str == "https://signin.aws.amazon.com/saml" {
+				a := chromedp.Value(`input[name=SAMLResponse]`, &SAMLResponse, chromedp.ByQuery)
+				a.Do(ctx)
+				_ = chromedp.Cancel(ctx)
+				return nil
+			}
+			return nil
+		}),
+
 		chromedp.WaitVisible(`input#identifierId`),
 		// set email
 		chromedp.SetValue(`#identifierId`, c.email, chromedp.ByID),
@@ -167,17 +188,24 @@ func Start(c StsConfig) {
 
 		chromedp.WaitNotVisible(`input[name=SAMLResponse]`),
 		chromedp.Value(`input[name=SAMLResponse]`, &SAMLResponse, chromedp.ByQuery),
+		chromedp.Sleep(1*time.Second),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			_ = chromedp.Cancel(ctx)
+			return nil
+		}),
 	)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 
-	parser := parser.New()
-	cm := credentials_manager.New(parser)
-	r := cm.PrepareRoleWithSAML(SAMLResponse, c.awsRoleArn)
-	cm.AssumeRoleWithSAML(SAMLResponse, c.awsCredentialsFile, c.awsProfile, r, c.sessionDuration)
-	log.Printf("Everything good")
+	if SAMLResponse != "" {
+		parser := parser.New()
+		cm := credentials_manager.New(parser)
+		r := cm.PrepareRoleWithSAML(SAMLResponse, c.awsRoleArn)
+		cm.AssumeRoleWithSAML(SAMLResponse, c.awsCredentialsFile, c.awsProfile, r, c.sessionDuration)
+		log.Printf("Everything good")
+	}
 }
 
 func fullScreenshot(urlstr string, quality int, res *[]byte) chromedp.Tasks {
